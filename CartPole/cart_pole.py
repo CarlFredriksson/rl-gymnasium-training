@@ -28,6 +28,7 @@ def update_model(loss_func, optimizer, target, prediction):
     optimizer.zero_grad()
 
 def plot_returns(returns):
+    print("Average return per episode:", np.sum(returns) / len(returns))
     plt.plot(np.arange(len(returns)), returns)
     plt.xlabel("Episode")
     plt.ylabel("Return")
@@ -91,16 +92,3 @@ def train_episodic_semi_gradient_qlearning(env, model, loss_func, optimizer, dev
         eps = update_eps(eps)
         returns.append(G)
     return returns
-
-def run_cart_pole_simulation(model, loss_func, optimizer, num_episodes, agent_type):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("PyTorch device:", device)
-    env = gym.make("CartPole-v1")
-    model.to(device)
-    optimizer = optim.SGD(model.parameters(), lr=0.01)
-    loss_func = nn.MSELoss()
-    #returns = 
-    returns = train_episodic_semi_gradient_sarsa(env, model, loss_func, optimizer, device, 1000)
-    env.close()
-    print(np.sum(returns) / len(returns))
-    plot_returns(returns)
