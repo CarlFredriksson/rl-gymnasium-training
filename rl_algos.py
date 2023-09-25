@@ -1,16 +1,27 @@
-import gymnasium as gym
-import matplotlib.pyplot as plt
+import numpy as np
 import torch
-from torch import nn, optim
-from rl_utils import *
+from torch import nn
+from collections import deque
+import random
 
-class LinearModel(nn.Module):
-    def __init__(self, num_input, num_output):
-        super().__init__()
-        self.linear = nn.Linear(num_input, num_output)
-    
-    def forward(self, X):
-        return self.linear(X)
+# For big projects, consider using torchrl.data.ReplayBuffer.
+# For more info, see https://pytorch.org/rl/tutorials/rb_tutorial.html.
+class ReplayMemory():
+    def __init__(self, size):
+        self._memory = deque(maxlen=size)
+
+    def __len__(self):
+        return len(self._memory)
+
+    def store(self, state, action, reward, next_state):
+        self._memory.append((state, action, reward, next_state))
+
+    def sample_batch(self, batch_size):
+        batch = random.sample(self._memory, batch_size)
+        # Transpose list of (state, action, reward, next_state) to
+        # (state_batch, action_batch, reward_batch, next_state_batch). For more info, see
+        # https://stackoverflow.com/questions/19339/transpose-unzip-function-inverse-of-zip/19343#19343.
+        return zip(*batch)
 
 def select_action_eps_greedy(env, model, state, eps):
     if np.random.random() < eps:
@@ -18,7 +29,7 @@ def select_action_eps_greedy(env, model, state, eps):
     with torch.no_grad():
         return torch.argmax(model(state)).item()
 
-def update_eps(eps, decay=0.995, min_value=0.1):
+def update_eps(eps, decay=0.995, min_value=0.01):
     return max(eps * decay, min_value)
 
 def update_model(loss_func, optimizer, predictions, targets, model=None, grad_clip_value=None):
@@ -29,14 +40,9 @@ def update_model(loss_func, optimizer, predictions, targets, model=None, grad_cl
     loss.backward()
     optimizer.step()
 
-def plot_returns(returns):
-    print("Average return per episode:", np.sum(returns) / len(returns))
-    plt.plot(np.arange(len(returns)), returns)
-    plt.xlabel("Episode")
-    plt.ylabel("Return")
-
-def train_episodic_semi_grad_sarsa(env, model, loss_func, optimizer, device, num_episodes, grad_clip_value=None):
-    eps = 1
+def train_episodic_semi_grad_sarsa(
+        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay, grad_clip_value=None):
+    eps = eps_start
     returns = []
     for ep in range(num_episodes):
         observation, info = env.reset()
@@ -64,12 +70,13 @@ def train_episodic_semi_grad_sarsa(env, model, loss_func, optimizer, device, num
                 state = next_state
                 action = next_action
 
-        eps = update_eps(eps)
+        eps = update_eps(eps, eps_decay, eps_min)
         returns.append(G)
     return returns
 
-def train_episodic_semi_grad_qlearning(env, model, loss_func, optimizer, device, num_episodes, grad_clip_value=None):
-    eps = 1
+def train_episodic_semi_grad_qlearning(
+        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay, grad_clip_value=None):
+    eps = eps_start
     returns = []
     for ep in range(num_episodes):
         observation, info = env.reset()
@@ -95,12 +102,14 @@ def train_episodic_semi_grad_qlearning(env, model, loss_func, optimizer, device,
                 update_model(loss_func, optimizer, state_action_value, target, model, grad_clip_value)
                 state = next_state
 
-        eps = update_eps(eps)
+        eps = update_eps(eps, eps_decay, eps_min)
         returns.append(G)
     return returns
 
-def train_episodic_semi_grad_qlearning_experience_replay(env, model, loss_func, optimizer, device, num_episodes, memory_size, batch_size, grad_clip_value=None):
-    eps = 1
+def train_episodic_semi_grad_qlearning_exp_replay(
+        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay,
+        memory_size, batch_size, grad_clip_value=None):
+    eps = eps_start
     returns = []
     replay_memory = ReplayMemory(memory_size)
     for ep in range(num_episodes):
@@ -135,6 +144,6 @@ def train_episodic_semi_grad_qlearning_experience_replay(env, model, loss_func, 
 
             state = next_state
 
-        eps = update_eps(eps)
+        eps = update_eps(eps, eps_decay, eps_min)
         returns.append(G)
     return returns
