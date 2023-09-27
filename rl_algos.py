@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import nn
 from collections import deque
@@ -24,13 +23,13 @@ class ReplayMemory():
         return zip(*batch)
 
 def select_action_eps_greedy(env, model, state, eps):
-    if np.random.random() < eps:
+    if random.random() < eps:
        return env.action_space.sample().item()
     with torch.no_grad():
         return torch.argmax(model(state)).item()
 
-def update_eps(eps, decay=0.995, min_value=0.01):
-    return max(eps * decay, min_value)
+def update_eps(eps, end_value=0.05, decay=0.995):
+    return max(eps * decay, end_value)
 
 def update_model(loss_func, optimizer, predictions, targets, model=None, grad_clip_value=None):
     loss = loss_func(predictions, targets)
@@ -40,12 +39,32 @@ def update_model(loss_func, optimizer, predictions, targets, model=None, grad_cl
     loss.backward()
     optimizer.step()
 
+def experience_replay(policy_model, target_model, replay_memory, batch_size, loss_func, optimizer, grad_clip_value, device):
+    if len(replay_memory) >= batch_size:
+        # Prepare batch
+        state_batch, action_batch, reward_batch, next_state_batch = replay_memory.sample_batch(batch_size)
+        state_batch = torch.cat(state_batch)
+        action_batch = torch.cat(action_batch)
+        reward_batch = torch.cat(reward_batch)
+        non_terminal_next_states = torch.cat([s for s in next_state_batch if s is not None])
+        non_terminal_next_states_mask = torch.tensor([s != None for s in next_state_batch], device=device)
+
+        # Update policy_net using batch
+        state_action_values = policy_model(state_batch).gather(1, action_batch).squeeze()
+        max_next_state_action_values = torch.zeros(batch_size, device=device)
+        with torch.no_grad():
+            max_next_state_action_values[non_terminal_next_states_mask] = torch.max(target_model(non_terminal_next_states), dim=1).values
+            targets = reward_batch + max_next_state_action_values
+        update_model(loss_func, optimizer, state_action_values, targets, policy_model, grad_clip_value)
+
 def train_episodic_semi_grad_sarsa(
-        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay, grad_clip_value=None):
+        env, model, loss_func, optimizer, device, rng_seed, num_episodes, eps_start, eps_end, eps_decay, grad_clip_value=None):
     eps = eps_start
     returns = []
     for ep in range(num_episodes):
-        observation, info = env.reset()
+        # Set seed only one time per training run. For more info, see https://gymnasium.farama.org/api/env/.
+        seed = rng_seed if ep == 0 else None
+        observation, info = env.reset(seed=seed)
         state = torch.tensor(observation, device=device)
         action = select_action_eps_greedy(env, model, state, eps)
         truncated = False
@@ -70,16 +89,18 @@ def train_episodic_semi_grad_sarsa(
                 state = next_state
                 action = next_action
 
-        eps = update_eps(eps, eps_decay, eps_min)
+        eps = update_eps(eps, eps_end, eps_decay)
         returns.append(G)
     return returns
 
 def train_episodic_semi_grad_qlearning(
-        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay, grad_clip_value=None):
+        env, model, loss_func, optimizer, device, rng_seed, num_episodes, eps_start, eps_end, eps_decay, grad_clip_value=None):
     eps = eps_start
     returns = []
     for ep in range(num_episodes):
-        observation, info = env.reset()
+        # Set seed only one time per training run. For more info, see https://gymnasium.farama.org/api/env/.
+        seed = rng_seed if ep == 0 else None
+        observation, info = env.reset(seed=seed)
         state = torch.tensor(observation, device=device)
         truncated = False
         terminated = False
@@ -102,18 +123,20 @@ def train_episodic_semi_grad_qlearning(
                 update_model(loss_func, optimizer, state_action_value, target, model, grad_clip_value)
                 state = next_state
 
-        eps = update_eps(eps, eps_decay, eps_min)
+        eps = update_eps(eps, eps_end, eps_decay)
         returns.append(G)
     return returns
 
 def train_episodic_semi_grad_qlearning_exp_replay(
-        env, model, loss_func, optimizer, device, num_episodes, eps_start, eps_min, eps_decay,
+        env, model, loss_func, optimizer, device, rng_seed, num_episodes, eps_start, eps_end, eps_decay,
         memory_size, batch_size, grad_clip_value=None):
     eps = eps_start
     returns = []
     replay_memory = ReplayMemory(memory_size)
     for ep in range(num_episodes):
-        observation, info = env.reset()
+        # Set seed only one time per training run. For more info, see https://gymnasium.farama.org/api/env/.
+        seed = rng_seed if ep == 0 else None
+        observation, info = env.reset(seed=seed)
         state = torch.tensor(observation, device=device).unsqueeze(0)
         truncated = False
         terminated = False
@@ -144,6 +167,6 @@ def train_episodic_semi_grad_qlearning_exp_replay(
 
             state = next_state
 
-        eps = update_eps(eps, eps_decay, eps_min)
+        eps = update_eps(eps, eps_end, eps_decay)
         returns.append(G)
     return returns
