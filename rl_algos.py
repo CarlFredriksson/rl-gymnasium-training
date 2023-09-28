@@ -128,8 +128,8 @@ def train_episodic_semi_grad_qlearning(
     return returns
 
 def train_episodic_semi_grad_qlearning_exp_replay(
-        env, model, loss_func, optimizer, device, rng_seed, num_episodes, eps_start, eps_end, eps_decay,
-        memory_size, batch_size, grad_clip_value=None):
+        env, policy_model, target_model, loss_func, optimizer, device, rng_seed, num_episodes,
+        eps_start, eps_end, eps_decay, memory_size, batch_size, grad_clip_value=None):
     eps = eps_start
     returns = []
     replay_memory = ReplayMemory(memory_size)
@@ -143,28 +143,15 @@ def train_episodic_semi_grad_qlearning_exp_replay(
         G = 0
 
         while not (terminated or truncated):
-            action = select_action_eps_greedy(env, model, torch.tensor(observation, device=device), eps)
+            action = select_action_eps_greedy(env, policy_model, torch.tensor(observation, device=device), eps)
             observation, reward, terminated, truncated, info = env.step(action)
             G += reward
             next_state = torch.tensor(observation, device=device).unsqueeze(0)
             action = torch.tensor([[action]], device=device)
             reward = torch.tensor([reward], device=device)
             replay_memory.store(state, action, reward, None if terminated else next_state)
-
-            if len(replay_memory) >= batch_size:
-                state_batch, action_batch, reward_batch, next_state_batch = replay_memory.sample_batch(batch_size)
-                state_batch = torch.cat(state_batch)
-                action_batch = torch.cat(action_batch)
-                reward_batch = torch.cat(reward_batch)
-                state_action_values = model(state_batch).gather(1, action_batch).squeeze()
-                non_terminal_next_states_mask = torch.tensor([s != None for s in next_state_batch], device=device)
-                non_terminal_next_states = torch.cat([s for s in next_state_batch if s is not None])
-                max_next_state_action_values = torch.zeros(batch_size, device=device)
-                with torch.no_grad():
-                    max_next_state_action_values[non_terminal_next_states_mask] = torch.max(model(non_terminal_next_states), dim=1).values
-                    targets = reward_batch + max_next_state_action_values
-                update_model(loss_func, optimizer, state_action_values, targets, model, grad_clip_value)
-
+            experience_replay(policy_model, target_model, replay_memory, batch_size, loss_func, optimizer, grad_clip_value, device)
+            # TODO: Update target_model at some point!!!!!!!!!!!!!!!
             state = next_state
 
         eps = update_eps(eps, eps_end, eps_decay)
