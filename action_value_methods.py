@@ -1,7 +1,6 @@
 import torch
 from collections import deque
 import random
-from utils import update_model
 
 # For big projects, consider using torchrl.data.ReplayBuffer.
 # For more info, see https://pytorch.org/rl/tutorials/rb_tutorial.html.
@@ -30,6 +29,14 @@ def select_action_eps_greedy(env, model, state, eps):
 
 def compute_eps_linear_decay(eps_start, eps_end, num_episodes_to_run, episode):
     return eps_start - episode * (eps_start - eps_end) / (num_episodes_to_run - 1)
+
+def update_model(loss_func, optimizer, predictions, targets, model=None, grad_clip_value=None):
+    loss = loss_func(predictions, targets)
+    optimizer.zero_grad()
+    loss.backward()
+    if model != None and grad_clip_value != None:
+        torch.nn.utils.clip_grad_value_(model.parameters(), grad_clip_value)
+    optimizer.step()
 
 def experience_replay(policy_model, target_model, replay_memory, batch_size, loss_func, optimizer, device, gamma, grad_clip_value):
     if len(replay_memory) >= batch_size:

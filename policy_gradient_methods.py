@@ -1,5 +1,5 @@
 import torch
-from utils import update_model
+import utils
 
 def train_episodic_reinforce(env, policy_model, loss_func, optimizer, device, rng_seed, num_episodes, gamma, grad_clip_value=None):
     returns = []
