@@ -2,12 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-def plot_returns(returns):
+def plot_returns(returns, target=None):
     print("Average return per episode:", np.sum(returns) / len(returns))
     episodes = np.arange(len(returns))
     plt.plot(episodes, returns, label="Return per episode")
     plt.plot(episodes, rolling_average(returns, 100), label="Rolling average return last 100 episodes")
-    plt.plot(episodes, np.ones(len(returns)) * 475, label="Rolling average return \"solving\" target")
+    if target is not None:
+        plt.plot(episodes, np.ones(len(returns)) * target, label="Rolling average return \"solving\" target")
     plt.xlabel("Episode")
     plt.ylabel("Return")
     plt.legend()
