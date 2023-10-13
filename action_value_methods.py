@@ -28,6 +28,10 @@ def select_action_eps_greedy(env, model, state, eps):
         return torch.argmax(model(state)).item()
 
 def compute_eps_linear_decay(eps_start, eps_end, num_episodes_to_run, episode):
+    if num_episodes_to_run < 1:
+        raise ValueError("num_episodes_to_run must be >= 1")
+    if num_episodes_to_run == 1:
+        return eps_start
     return eps_start - episode * (eps_start - eps_end) / (num_episodes_to_run - 1)
 
 def update_model(loss_func, optimizer, predictions, targets, model=None, grad_clip_value=None):
@@ -42,10 +46,10 @@ def experience_replay(policy_model, target_model, replay_memory, batch_size, los
     if len(replay_memory) >= batch_size:
         # Prepare batch
         state_batch, action_batch, reward_batch, next_state_batch = replay_memory.sample_batch(batch_size)
-        state_batch = torch.cat(state_batch)
-        action_batch = torch.cat(action_batch)
-        reward_batch = torch.cat(reward_batch)
-        non_terminal_next_states = torch.cat([s for s in next_state_batch if s is not None])
+        state_batch = torch.stack(state_batch, dim=0)
+        action_batch = torch.stack(action_batch, dim=0)
+        reward_batch = torch.stack(reward_batch, dim=0)
+        non_terminal_next_states = torch.stack([s for s in next_state_batch if s is not None], dim=0)
         non_terminal_next_states_mask = torch.tensor([s != None for s in next_state_batch], device=device)
 
         # Update policy model using batch
@@ -136,7 +140,7 @@ def train_episodic_semi_grad_qlearning_exp_replay(
         # Set seed only one time per training run. For more info, see https://gymnasium.farama.org/api/env/.
         seed = rng_seed if episode == 0 else None
         observation, info = env.reset(seed=seed)
-        state = torch.tensor(observation, device=device).unsqueeze(0)
+        state = torch.tensor(observation, device=device)
         eps = compute_eps_linear_decay(eps_start, eps_end, num_episodes, episode)
         truncated = False
         terminated = False
@@ -149,14 +153,14 @@ def train_episodic_semi_grad_qlearning_exp_replay(
                 target_model.load_state_dict(policy_model.state_dict())
 
             # Take action
-            action = select_action_eps_greedy(env, policy_model, torch.tensor(observation, device=device), eps)
+            action = select_action_eps_greedy(env, policy_model, state, eps)
             observation, reward, terminated, truncated, info = env.step(action)
             G += reward
 
             # Store transition in replay memory
-            next_state = torch.tensor(observation, device=device).unsqueeze(0)
-            action = torch.tensor([[action]], device=device)
-            reward = torch.tensor([reward], device=device)
+            next_state = torch.tensor(observation, device=device)
+            action = torch.tensor([action], device=device)
+            reward = torch.tensor(reward, device=device)
             replay_memory.store(state, action, reward, None if terminated else next_state)
 
             # Update policy model using experience replay
