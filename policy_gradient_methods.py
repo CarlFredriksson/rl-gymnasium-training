@@ -3,7 +3,20 @@ import utils
 
 def select_action_softmax(model, state):
     with torch.no_grad():
-        return torch.distributions.categorical.Categorical(model(state)).sample().item()
+        action_probabilities = model(state.unsqueeze(dim=0))
+    return torch.distributions.categorical.Categorical(action_probabilities).sample().item()
+
+def compute_discounted_returns(rewards, gamma, device):
+    discounted_returns = []
+    discount_factors = []
+    G = 0
+    for t in reversed(range(len(rewards))):
+        G = gamma * G + rewards[t]
+        discounted_returns.append(G)
+        discount_factors.append(gamma**t)
+    discounted_returns.reverse()
+    discount_factors.reverse()
+    return torch.tensor(discounted_returns, device=device), torch.tensor(discount_factors, device=device)
 
 def train_episodic_reinforce(env, policy_model, optimizer, device, rng_seed, num_episodes, gamma, grad_clip_value=None):
     returns = []
@@ -78,23 +91,12 @@ def train_episodic_reinforce_with_baseline(
         returns.append(G)
 
         # Learn from episode
-        discounted_returns = []
-        discount_factors = []
-        G = 0
-        for t in reversed(range(len(rewards))):
-            G = gamma * G + rewards[t]
-            discounted_returns.append(G)
-            discount_factors.append(gamma**t)
-        discounted_returns.reverse()
-        discounted_returns = torch.tensor(discounted_returns, device=device)
-        discount_factors.reverse()
-        discount_factors = torch.tensor(discount_factors, device=device)
+        discounted_returns, discount_factors = compute_discounted_returns(rewards, gamma, device)
         states = torch.stack(states[:-1], dim=0)
         actions = torch.stack(actions, dim=0)
         with torch.no_grad():
             state_values = value_model(states).squeeze()
         delta = discounted_returns - state_values
-        delta = discounted_returns
         policy_loss = -torch.sum(discount_factors * delta * torch.log(policy_model(states).gather(1, actions)).squeeze())
         policy_optimizer.zero_grad()
         policy_loss.backward()

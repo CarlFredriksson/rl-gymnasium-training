@@ -8,5 +8,5 @@ def create_simple_nn(input_size, output_size, hidden_layer_sizes, output_activat
         if i < len(layer_sizes)-2:
             layers.append(nn.ReLU())
     if output_activation == "softmax":
-        layers.append(nn.Softmax(dim=0))
+        layers.append(nn.Softmax(dim=1))
     return nn.Sequential(*layers)
