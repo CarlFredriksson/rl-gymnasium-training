@@ -23,6 +23,9 @@ def plot_returns(returns, target=None):
     plt.legend()
 
 def plot_returns_multiple_runs(returns_per_run, target=None):
+    if len(returns_per_run) == 1:
+        plot_returns(returns_per_run[0], target)
+        return
     num_rows = math.ceil(math.sqrt(len(returns_per_run)))
     num_cols = num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(8, 5))
