@@ -53,25 +53,6 @@ def train_episodic_reinforce(env, policy_model, policy_optimizer, device, rng_se
         update_model(loss, policy_optimizer, policy_model, grad_clip_value)
     return returns
 
-def train_episodic_reinforce_old(env, policy_model, optimizer, device, rng_seed, num_episodes, gamma, grad_clip_value=None):
-    returns = []
-    for episode in range(num_episodes):
-        states, actions, rewards = generate_episode(env, policy_model, device, rng_seed if episode == 0 else None)
-        returns.append(np.sum(rewards))
-
-        # Learn from episode
-        discounted_returns, discount_factors = compute_discounted_returns(rewards, gamma, device)
-        states = torch.stack(states, dim=0)
-        actions = torch.stack(actions, dim=0)
-        loss = -torch.sum(discount_factors * discounted_returns * torch.log(policy_model(states).gather(1, actions)).squeeze())
-        optimizer.zero_grad()
-        loss.backward()
-        if grad_clip_value != None:
-            torch.nn.utils.clip_grad_value_(policy_model.parameters(), grad_clip_value)
-        optimizer.step()
-        
-    return returns, states, actions, rewards
-
 def train_episodic_reinforce_with_baseline(
         env, policy_model, value_model, policy_optimizer, value_optimizer, device, rng_seed, num_episodes, gamma, grad_clip_value=None):
     returns = []
@@ -87,31 +68,3 @@ def train_episodic_reinforce_with_baseline(
         value_loss = -torch.sum(delta * value_model(states).squeeze())
         update_model(value_loss, value_optimizer, value_model, grad_clip_value)
     return returns
-
-def train_episodic_reinforce_with_baseline_old(
-        env, policy_model, value_model, policy_optimizer, value_optimizer, device, rng_seed, num_episodes, gamma, grad_clip_value=None):
-    returns = []
-    for episode in range(num_episodes):
-        states, actions, rewards = generate_episode(env, policy_model, device, rng_seed if episode == 0 else None)
-        returns.append(np.sum(rewards))
-
-        # Learn from episode
-        discounted_returns, discount_factors = compute_discounted_returns(rewards, gamma, device)
-        states = torch.stack(states[:-1], dim=0)
-        actions = torch.stack(actions, dim=0)
-        with torch.no_grad():
-            state_values = value_model(states).squeeze()
-        delta = discounted_returns - state_values
-        policy_loss = -torch.sum(discount_factors * delta * torch.log(policy_model(states).gather(1, actions)).squeeze())
-        policy_optimizer.zero_grad()
-        policy_loss.backward()
-        value_loss = -torch.sum(delta * value_model(states).squeeze())
-        value_optimizer.zero_grad()
-        value_loss.backward()
-        if grad_clip_value != None:
-            torch.nn.utils.clip_grad_value_(policy_model.parameters(), grad_clip_value)
-            torch.nn.utils.clip_grad_value_(value_model.parameters(), grad_clip_value)
-        policy_optimizer.step()
-        value_optimizer.step()
-        
-    return returns, states, actions, rewards
