@@ -63,8 +63,8 @@ def train_episodic_reinforce_with_baseline(
         with torch.no_grad():
             state_values = value_model(states).squeeze()
         delta = discounted_returns - state_values
-        policy_loss = -torch.sum(discount_factors * delta * torch.log(policy_model(states).gather(1, actions)).squeeze())
-        update_model(policy_loss, policy_optimizer, policy_model, grad_clip_value)
         value_loss = -torch.sum(delta * value_model(states).squeeze())
         update_model(value_loss, value_optimizer, value_model, grad_clip_value)
+        policy_loss = -torch.sum(discount_factors * delta * torch.log(policy_model(states).gather(1, actions)).squeeze())
+        update_model(policy_loss, policy_optimizer, policy_model, grad_clip_value)
     return returns
