@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-def select_action_softmax(action_probabilities):
+def select_action(action_probabilities):
     return torch.distributions.categorical.Categorical(action_probabilities).sample().item()
 
 def generate_episode(env, policy_model, device, rng_seed=None):
@@ -16,7 +16,7 @@ def generate_episode(env, policy_model, device, rng_seed=None):
     while not (terminated or truncated):
         with torch.no_grad():
             action_probabilities = policy_model(state.unsqueeze(dim=0))
-        action = select_action_softmax(action_probabilities)
+        action = select_action(action_probabilities)
         observation, reward, terminated, truncated, info = env.step(action)
         state = torch.tensor(observation, device=device)
         states.append(state)
