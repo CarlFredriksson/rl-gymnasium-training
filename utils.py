@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import math
 
 def compute_rolling_average(numbers_to_average, window_size):
@@ -47,3 +48,10 @@ def plot_returns_multiple_runs(returns_per_run, target=None):
     handles, labels = axs[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, 1.04))
     plt.tight_layout()
+
+def save_frames_as_gif(frames, path, fig_size_ratio=1/128):
+    fig = plt.figure(figsize=(frames[0].shape[1] * fig_size_ratio, frames[0].shape[0] * fig_size_ratio))
+    plt.axis("off")
+    patch = plt.imshow(frames[0])
+    anim = animation.FuncAnimation(fig, lambda i : patch.set_data(frames[i]), frames=range(len(frames)), interval=50)
+    anim.save(path, writer="pillow", fps=60)
