@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import gymnasium as gym
 
 def select_action(action_probabilities):
     return torch.distributions.categorical.Categorical(action_probabilities).sample().item()
@@ -68,3 +69,21 @@ def train_episodic_reinforce_with_baseline(
         policy_loss = -torch.sum(discount_factors * delta * torch.log(policy_model(states).gather(1, actions)).squeeze())
         update_model(policy_loss, policy_optimizer, policy_model, grad_clip_value)
     return returns
+
+def generate_frames(environment_id, num_episodes, policy_model, device):
+    env = gym.make(environment_id, render_mode="rgb_array")
+    frames = []
+    for episode in range(num_episodes):
+        observation, info = env.reset()
+        state = torch.tensor(observation, device=device)
+        terminated = False
+        truncated = False
+        while not (terminated or truncated):
+            frames.append(env.render())
+            with torch.no_grad():
+                action_probabilities = policy_model(state.unsqueeze(dim=0))
+            action = select_action(action_probabilities)
+            observation, reward, terminated, truncated, info = env.step(action)
+            state = torch.tensor(observation, device=device)
+    env.close()
+    return frames

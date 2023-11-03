@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import math
+import gymnasium as gym
 
 def compute_rolling_average(numbers_to_average, window_size):
     rolling_averages = []
@@ -55,3 +56,18 @@ def save_frames_as_gif(frames, path, fig_size_ratio=1/128):
     patch = plt.imshow(frames[0])
     anim = animation.FuncAnimation(fig, lambda i : patch.set_data(frames[i]), frames=range(len(frames)), interval=50)
     anim.save(path, writer="pillow", fps=60)
+
+def generate_random_agent_frames(environment_id, num_episodes, rng_seed):
+    env = gym.make(environment_id, render_mode="rgb_array")
+    env.action_space.seed(rng_seed)
+    frames = []
+    for episode in range(num_episodes):
+        observation, info = env.reset()
+        terminated = False
+        truncated = False
+        while not (terminated or truncated):
+            frames.append(env.render())
+            action = env.action_space.sample()
+            observation, reward, terminated, truncated, info = env.step(action)
+    env.close()
+    return frames
