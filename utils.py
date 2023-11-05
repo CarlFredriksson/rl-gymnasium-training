@@ -62,7 +62,7 @@ def generate_random_agent_frames(environment_id, num_episodes, rng_seed):
     env.action_space.seed(rng_seed)
     frames = []
     for episode in range(num_episodes):
-        observation, info = env.reset()
+        observation, info = env.reset(seed=rng_seed if episode == 0 else None)
         terminated = False
         truncated = False
         while not (terminated or truncated):

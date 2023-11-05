@@ -70,11 +70,11 @@ def train_episodic_reinforce_with_baseline(
         update_model(policy_loss, policy_optimizer, policy_model, grad_clip_value)
     return returns
 
-def generate_frames(environment_id, num_episodes, policy_model, device):
+def generate_frames(environment_id, num_episodes, rng_seed, policy_model, device):
     env = gym.make(environment_id, render_mode="rgb_array")
     frames = []
     for episode in range(num_episodes):
-        observation, info = env.reset()
+        observation, info = env.reset(seed=rng_seed if episode == 0 else None)
         state = torch.tensor(observation, device=device)
         terminated = False
         truncated = False
