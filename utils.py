@@ -4,6 +4,13 @@ import matplotlib.animation as animation
 import math
 import gymnasium as gym
 
+def compute_eps_linear_decay(eps_start, eps_end, num_episodes_to_run, episode):
+    if num_episodes_to_run < 1:
+        raise ValueError("num_episodes_to_run must be >= 1")
+    if num_episodes_to_run == 1:
+        return eps_start
+    return eps_start - episode * (eps_start - eps_end) / (num_episodes_to_run - 1)
+
 def compute_rolling_average(numbers_to_average, window_size):
     rolling_averages = []
     for i in range(len(numbers_to_average)):
